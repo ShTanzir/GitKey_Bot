@@ -4,8 +4,7 @@ import android.app.Activity;
 import android.app.Dialog;
 import android.content.Context;
 import android.content.Intent;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
+import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
@@ -13,6 +12,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.view.Gravity;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowManager;
 import android.view.animation.DecelerateInterpolator;
@@ -25,333 +25,384 @@ import android.widget.TextView;
 import java.io.InputStream;
 
 /**
- * Native Java recreation of the MODMASE / Mikasa HTML dialog.
- * No XML layout and no third-party dependencies are used.
+ * Pure-native Java MODMASE / MIKASA dialog.
+ * No XML layouts and no external Android libraries.
  */
-public class MIKASA extends Dialog {
+public final class MIKASA {
 
-    private static final int CREAM = Color.rgb(238, 231, 216);
-    private static final int PAPER = Color.rgb(245, 240, 229);
+    private static final String PREFS = "modmase_dialog";
+    private static final String JOINED_KEY = "telegram_joined";
+    private static final String TELEGRAM_HANDLE = "MODMASE";
+    private static final String TELEGRAM_URL = "https://t.me/MODMASE";
+
+    private static final int CREAM = Color.rgb(245, 240, 229);
     private static final int BLACK = Color.rgb(23, 21, 21);
-    private static final int CHARCOAL = Color.rgb(40, 35, 35);
-    private static final int RED = Color.rgb(168, 47, 67);
-    private static final int RED_DARK = Color.rgb(129, 38, 56);
+    private static final int CHARCOAL = Color.rgb(47, 42, 40);
+    private static final int RED = Color.rgb(173, 46, 68);
+    private static final int RED_DARK = Color.rgb(139, 33, 52);
     private static final int MUTED = Color.rgb(117, 109, 101);
-    private static final int FOOTER = Color.rgb(154, 145, 135);
+    private static final int FOOTER = Color.rgb(151, 143, 134);
+    private static final int BORDER = Color.argb(42, 23, 21, 21);
 
-    private final Activity activity;
-    private LinearLayout card;
-    private boolean closing;
+    private static final int IMAGE_WIDTH = 1200;
+    private static final int IMAGE_HEIGHT = 675;
 
-    public MIKASA(Activity activity) {
-        super(activity);
-        this.activity = activity;
-        requestWindowFeature(Window.FEATURE_NO_TITLE);
-        setCanceledOnTouchOutside(true);
+    private MIKASA() {
+        // Utility class.
     }
 
-    @Override
-    protected void onCreate(android.os.Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        buildDialog();
-    }
-
-    private void buildDialog() {
-        final Context context = activity;
-        final int cardWidth = getCardWidth();
-        final int imageHeight = Math.round(cardWidth * 675f / 1200f);
-
-        FrameLayout outer = new FrameLayout(context);
-        outer.setPadding(dp(18), 0, dp(18), 0);
-        outer.setBackgroundColor(Color.TRANSPARENT);
-
-        card = new LinearLayout(context);
-        card.setOrientation(LinearLayout.VERTICAL);
-        card.setGravity(Gravity.CENTER_HORIZONTAL);
-        card.setBackground(roundRect(PAPER, 25, Color.argb(89, 255, 255, 255), 1));
-        card.setElevation(dp(10));
-
-        if (Build.VERSION.SDK_INT >= 21) {
-            card.setClipToOutline(true);
-        }
-
-        // IMAGE -------------------------------------------------------------
-        FrameLayout imageBox = new FrameLayout(context);
-        imageBox.setBackgroundColor(Color.rgb(36, 32, 30));
-
-        ImageView image = new ImageView(context);
-        image.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        Bitmap bitmap = loadAssetBitmap("mikasa.png");
-        if (bitmap != null) {
-            image.setImageBitmap(bitmap);
-        }
-        imageBox.addView(image, new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT));
-
-        // Soft dark fade at the bottom of the image.
-        View imageFade = new View(context);
-        android.graphics.drawable.GradientDrawable fade = new android.graphics.drawable.GradientDrawable(
-                android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,
-                new int[]{Color.argb(0, 0, 0, 0), Color.argb(82, 0, 0, 0)});
-        imageFade.setBackground(fade);
-        imageBox.addView(imageFade, new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT));
-
-        // Crimson accent line.
-        View accent = new View(context);
-        GradientDrawable accentBg = roundRect(RED, 4, 0, 0);
-        accent.setBackground(accentBg);
-        FrameLayout.LayoutParams accentParams = new FrameLayout.LayoutParams(dp(65), dp(4));
-        accentParams.gravity = Gravity.BOTTOM | Gravity.START;
-        accentParams.leftMargin = dp(24);
-        imageBox.addView(accent, accentParams);
-
-        card.addView(imageBox, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, imageHeight));
-
-        // CONTENT -----------------------------------------------------------
-        LinearLayout content = new LinearLayout(context);
-        content.setOrientation(LinearLayout.VERTICAL);
-        content.setGravity(Gravity.CENTER_HORIZONTAL);
-        content.setPadding(dp(25), dp(22), dp(25), dp(20));
-
-        TextView eyebrow = textView("WELCOME", RED, 10, Typeface.BOLD);
-        eyebrow.setGravity(Gravity.CENTER);
-        eyebrow.setLetterSpacing(0.28f);
-        content.addView(eyebrow, wrapParams());
-
-        TextView title = textView("MODMASE", BLACK, 43, Typeface.BOLD);
-        title.setGravity(Gravity.CENTER);
-        title.setTypeface(Typeface.create("serif", Typeface.BOLD));
-        title.setLetterSpacing(0.08f);
-        content.addView(title, wrapParams());
-
-        TextView description = textView(
-                "Discover updates, resources and creative content from MODMASE. " +
-                "Join our Telegram community and stay connected with the latest releases.",
-                MUTED,
-                13,
-                Typeface.NORMAL);
-        description.setGravity(Gravity.CENTER);
-        description.setLineSpacing(0f, 1.55f);
-        LinearLayout.LayoutParams descriptionParams = wrapParams();
-        descriptionParams.topMargin = dp(12);
-        descriptionParams.bottomMargin = dp(21);
-        descriptionParams.width = dp(365);
-        content.addView(description, descriptionParams);
-
-        LinearLayout buttons = new LinearLayout(context);
-        buttons.setOrientation(LinearLayout.HORIZONTAL);
-        buttons.setGravity(Gravity.CENTER);
-
-        Button exit = makeButton("EXIT", Color.TRANSPARENT, CHARCOAL, Color.argb(35, 23, 21, 21), false);
-        Button telegram = makeButton("JOIN TELEGRAM", RED, Color.WHITE, RED, true);
-
-        LinearLayout.LayoutParams exitParams = new LinearLayout.LayoutParams(0, dp(50), 0.8f);
-        exitParams.rightMargin = dp(5);
-        buttons.addView(exit, exitParams);
-
-        LinearLayout.LayoutParams telegramParams = new LinearLayout.LayoutParams(0, dp(50), 1.2f);
-        telegramParams.leftMargin = dp(5);
-        buttons.addView(telegram, telegramParams);
-
-        content.addView(buttons, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(50)));
-
-        TextView footer = textView("MODMASE COMMUNITY", FOOTER, 9, Typeface.BOLD);
-        footer.setGravity(Gravity.CENTER);
-        footer.setLetterSpacing(0.18f);
-        LinearLayout.LayoutParams footerParams = wrapParams();
-        footerParams.topMargin = dp(17);
-        content.addView(footer, footerParams);
-
-        card.addView(content, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT));
-
-        outer.addView(card, new FrameLayout.LayoutParams(cardWidth, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.CENTER));
-        setContentView(outer);
-
-        Window window = getWindow();
-        if (window != null) {
-            window.setBackgroundDrawableResource(android.R.color.transparent);
-            WindowManager.LayoutParams lp = window.getAttributes();
-            lp.width = WindowManager.LayoutParams.MATCH_PARENT;
-            lp.height = WindowManager.LayoutParams.WRAP_CONTENT;
-            lp.dimAmount = 0.58f;
-            window.setAttributes(lp);
-            window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
-        }
-
-        // Soft opening animation, matching the HTML's staged motion.
-        card.setAlpha(0f);
-        card.setScaleX(0.94f);
-        card.setScaleY(0.94f);
-        card.setTranslationY(dp(30));
-
-        image.setAlpha(0f);
-        image.setScaleX(1.08f);
-        image.setScaleY(1.08f);
-
-        animateIn(card, 0, 650);
-        animateImage(image, 80, 900);
-        animateIn(eyebrow, 220, 450);
-        animateIn(title, 280, 500);
-        animateIn(description, 360, 450);
-        animateIn(buttons, 430, 450);
-        animateIn(footer, 520, 400);
-
-        exit.setOnClickListener(v -> dismissWithAnimation());
-        telegram.setOnClickListener(v -> openTelegram());
-
-        setOnCancelListener(dialog -> {
-            if (!closing) {
-                dismissWithAnimation();
-            }
-        });
-    }
-
-    @Override
-    public void show() {
-        super.show();
-        Window window = getWindow();
-        if (window != null) {
-            WindowManager.LayoutParams lp = window.getAttributes();
-            lp.width = WindowManager.LayoutParams.MATCH_PARENT;
-            lp.height = WindowManager.LayoutParams.WRAP_CONTENT;
-            window.setAttributes(lp);
-        }
-    }
-
-    private void openTelegram() {
-        try {
-            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/MODMASE"));
-            activity.startActivity(intent);
-        } catch (Exception ignored) {
-            // No compatible handler installed.
-        }
-    }
-
-    private void dismissWithAnimation() {
-        if (closing || !isShowing()) {
+    /** Show the dialog unless the user has already joined Telegram. */
+    public static void show(final Activity activity) {
+        if (activity == null || activity.isFinishing()) {
             return;
         }
-        closing = true;
 
-        card.animate()
-                .alpha(0f)
-                .scaleX(0.97f)
-                .scaleY(0.97f)
-                .translationY(dp(15))
-                .setDuration(250)
-                .setInterpolator(new DecelerateInterpolator(1.4f))
-                .withEndAction(this::dismiss)
+        SharedPreferences prefs = activity.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        if (prefs.getBoolean(JOINED_KEY, false)) {
+            return;
+        }
+
+        final Dialog dialog = new Dialog(activity);
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        dialog.setCancelable(false);
+        dialog.setCanceledOnTouchOutside(false);
+
+        // ----- Root container -----
+        FrameLayout root = new FrameLayout(activity);
+        root.setPadding(dp(activity, 12), 0, dp(activity, 12), 0);
+        root.setBackgroundColor(Color.TRANSPARENT);
+
+        // ----- Card -----
+        final LinearLayout card = new LinearLayout(activity);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setGravity(Gravity.CENTER_HORIZONTAL);
+        card.setClipToOutline(true);
+        card.setElevation(dp(activity, 10));
+        card.setBackground(rounded(activity, CREAM, 25, 1, Color.argb(55, 255, 255, 255)));
+
+        FrameLayout.LayoutParams cardParams = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        cardParams.gravity = Gravity.CENTER;
+        root.addView(card, cardParams);
+
+        // ----- Image + accent line -----
+        FrameLayout imageFrame = new FrameLayout(activity);
+        imageFrame.setBackgroundColor(Color.rgb(37, 33, 31));
+
+        final AspectImageView imageView = new AspectImageView(activity);
+        imageView.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        imageView.setImageResource(android.R.color.transparent);
+
+        try (InputStream input = activity.getAssets().open("mikasa.png")) {
+            android.graphics.Bitmap bitmap = android.graphics.BitmapFactory.decodeStream(input);
+            imageView.setImageBitmap(bitmap);
+        } catch (Exception ignored) {
+            // Keep the image area instead of crashing the app.
+        }
+
+        FrameLayout.LayoutParams imageParams = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        imageFrame.addView(imageView, imageParams);
+
+        View accent = new View(activity);
+        accent.setBackground(rounded(activity, RED, 4, 0, Color.TRANSPARENT));
+        FrameLayout.LayoutParams accentParams = new FrameLayout.LayoutParams(
+                dp(activity, 65),
+                dp(activity, 4)
+        );
+        accentParams.gravity = Gravity.BOTTOM | Gravity.START;
+        accentParams.leftMargin = dp(activity, 42);
+        imageFrame.addView(accent, accentParams);
+
+        LinearLayout.LayoutParams imageFrameParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(activity, 220)
+        );
+        card.addView(imageFrame, imageFrameParams);
+
+        // ----- Content -----
+        LinearLayout content = new LinearLayout(activity);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setGravity(Gravity.CENTER_HORIZONTAL);
+        content.setPadding(dp(activity, 24), dp(activity, 22), dp(activity, 24), dp(activity, 20));
+        card.addView(content, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+
+        Typeface titleFont = loadFont(activity, "fonts/MikasaTitle.otf", Typeface.SERIF);
+        Typeface bodyFont = loadFont(activity, "fonts/MikasaBody.ttf", Typeface.DEFAULT);
+        Typeface bodyBoldFont = loadFont(activity, "fonts/MikasaBodyBold.ttf", Typeface.DEFAULT_BOLD);
+
+        // ----- Eyebrow -----
+        TextView welcome = text(activity, "WELCOME", RED, 10, bodyBoldFont);
+        welcome.setGravity(Gravity.CENTER);
+        welcome.setLetterSpacing(0.26f);
+        content.addView(welcome);
+
+        // ----- Title -----
+        TextView title = text(activity, "MODMASE", BLACK, 42, titleFont);
+        title.setGravity(Gravity.CENTER);
+        title.setLetterSpacing(0.07f);
+        title.setIncludeFontPadding(true);
+
+        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        titleParams.topMargin = dp(activity, 2);
+        content.addView(title, titleParams);
+
+        // ----- Description -----
+        TextView description = text(
+                activity,
+                "Discover updates, resources and creative content from MODMASE. "
+                        + "Join our Telegram community and stay connected with the latest releases.",
+                MUTED,
+                13.5f,
+                bodyFont
+        );
+        description.setGravity(Gravity.CENTER);
+        description.setLineSpacing(0, 1.38f);
+        description.setPadding(dp(activity, 2), 0, dp(activity, 2), 0);
+        description.setMaxLines(4);
+
+        LinearLayout.LayoutParams descriptionParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        descriptionParams.topMargin = dp(activity, 10);
+        descriptionParams.bottomMargin = dp(activity, 20);
+        content.addView(description, descriptionParams);
+
+        // ----- Buttons -----
+        LinearLayout buttons = new LinearLayout(activity);
+        buttons.setOrientation(LinearLayout.HORIZONTAL);
+        buttons.setGravity(Gravity.CENTER);
+        buttons.setWeightSum(2f);
+        content.addView(buttons, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(activity, 50)
+        ));
+
+        Button exitButton = button(activity, "EXIT", CHARCOAL, bodyBoldFont);
+        exitButton.setBackground(rounded(activity, Color.TRANSPARENT, 13, 1, BORDER));
+        exitButton.setStateListAnimator(null);
+        exitButton.setAllCaps(false);
+
+        LinearLayout.LayoutParams exitParams = new LinearLayout.LayoutParams(0, dp(activity, 50), 0.8f);
+        exitParams.rightMargin = dp(activity, 5);
+        buttons.addView(exitButton, exitParams);
+
+        Button telegramButton = button(activity, "JOIN TELEGRAM", Color.WHITE, bodyBoldFont);
+        telegramButton.setBackground(rounded(activity, RED, 13, 0, Color.TRANSPARENT));
+        telegramButton.setStateListAnimator(null);
+        telegramButton.setAllCaps(false);
+        telegramButton.setElevation(dp(activity, 3));
+
+        LinearLayout.LayoutParams telegramParams = new LinearLayout.LayoutParams(0, dp(activity, 50), 1.2f);
+        telegramParams.leftMargin = dp(activity, 5);
+        buttons.addView(telegramButton, telegramParams);
+
+        // ----- Footer -----
+        TextView footer = text(activity, "MODMASE COMMUNITY", FOOTER, 8.5f, bodyBoldFont);
+        footer.setGravity(Gravity.CENTER);
+        footer.setLetterSpacing(0.20f);
+        LinearLayout.LayoutParams footerParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        footerParams.topMargin = dp(activity, 17);
+        content.addView(footer, footerParams);
+
+        // ----- Button actions -----
+        exitButton.setOnClickListener(v -> {
+            press(v);
+            v.postDelayed(() -> {
+                if (!activity.isFinishing()) {
+                    activity.finishAffinity();
+                    if (Build.VERSION.SDK_INT >= 21) {
+                        activity.finishAndRemoveTask();
+                    }
+                }
+            }, 110);
+        });
+
+        telegramButton.setOnClickListener(v -> {
+            press(v);
+
+            // Save BEFORE launching Telegram/browser so the dialog stays hidden next time.
+            prefs.edit().putBoolean(JOINED_KEY, true).apply();
+
+            v.postDelayed(() -> {
+                openTelegram(activity);
+                dialog.dismiss();
+            }, 110);
+        });
+
+        // ----- Dialog window -----
+        dialog.setContentView(root);
+        dialog.setOnShowListener(d -> {
+            Window window = dialog.getWindow();
+            if (window == null) {
+                return;
+            }
+
+            window.setBackgroundDrawableResource(android.R.color.transparent);
+            window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+
+            WindowManager.LayoutParams lp = window.getAttributes();
+            lp.dimAmount = 0.56f;
+            window.setAttributes(lp);
+
+            int screenWidth = activity.getResources().getDisplayMetrics().widthPixels;
+            int maxWidth = dp(activity, 470);
+            int width = Math.min(maxWidth, (int) (screenWidth * 0.88f));
+            window.setLayout(width, WindowManager.LayoutParams.WRAP_CONTENT);
+
+            // Exact 1200:675 image ratio.
+            imageView.post(() -> {
+                int w = imageFrame.getWidth();
+                if (w > 0) {
+                    int h = Math.round(w * ((float) IMAGE_HEIGHT / IMAGE_WIDTH));
+                    ViewGroup.LayoutParams lp2 = imageView.getLayoutParams();
+                    lp2.height = h;
+                    imageView.setLayoutParams(lp2);
+                    ViewGroup.LayoutParams fp = imageFrame.getLayoutParams();
+                    fp.height = h;
+                    imageFrame.setLayoutParams(fp);
+                }
+            });
+
+            // Soft entrance animation.
+            card.setAlpha(0f);
+            card.setScaleX(0.94f);
+            card.setScaleY(0.94f);
+            card.setTranslationY(dp(activity, 30));
+            card.animate()
+                    .alpha(1f)
+                    .scaleX(1f)
+                    .scaleY(1f)
+                    .translationY(0f)
+                    .setDuration(620)
+                    .setInterpolator(new DecelerateInterpolator(1.8f))
+                    .start();
+
+            imageView.setAlpha(0f);
+            imageView.setScaleX(1.07f);
+            imageView.setScaleY(1.07f);
+            imageView.animate()
+                    .alpha(1f)
+                    .scaleX(1.02f)
+                    .scaleY(1.02f)
+                    .setDuration(900)
+                    .setInterpolator(new DecelerateInterpolator(1.5f))
+                    .start();
+
+            animateIn(welcome, 180, 8);
+            animateIn(title, 240, 12);
+            animateIn(description, 320, 10);
+            animateIn(buttons, 390, 10);
+            animateIn(footer, 480, 8);
+        });
+
+        dialog.show();
+    }
+
+    private static void openTelegram(Activity activity) {
+        try {
+            Intent tg = new Intent(Intent.ACTION_VIEW, Uri.parse("tg://resolve?domain=" + TELEGRAM_HANDLE));
+            activity.startActivity(tg);
+            return;
+        } catch (Exception ignored) {
+            // Telegram app not installed or tg:// unsupported. Fallback to browser.
+        }
+
+        try {
+            Intent web = new Intent(Intent.ACTION_VIEW, Uri.parse(TELEGRAM_URL));
+            activity.startActivity(web);
+        } catch (Exception ignored) {
+            // No browser available.
+        }
+    }
+
+    private static void press(View view) {
+        view.animate()
+                .scaleX(0.96f)
+                .scaleY(0.96f)
+                .setDuration(70)
+                .withEndAction(() -> view.animate()
+                        .scaleX(1f)
+                        .scaleY(1f)
+                        .setDuration(90)
+                        .start())
                 .start();
     }
 
-    private void animateIn(View view, long delay, long duration) {
+    private static void animateIn(View view, long delay, float translationDp) {
         view.setAlpha(0f);
-        view.setTranslationY(dp(10));
+        view.setTranslationY(view.getResources().getDisplayMetrics().density * translationDp);
         view.animate()
                 .alpha(1f)
                 .translationY(0f)
                 .setStartDelay(delay)
-                .setDuration(duration)
-                .setInterpolator(new DecelerateInterpolator(1.6f))
+                .setDuration(450)
+                .setInterpolator(new DecelerateInterpolator(1.4f))
                 .start();
     }
 
-    private void animateImage(View view, long delay, long duration) {
-        view.animate()
-                .alpha(1f)
-                .scaleX(1.02f)
-                .scaleY(1.02f)
-                .setStartDelay(delay)
-                .setDuration(duration)
-                .setInterpolator(new DecelerateInterpolator(1.5f))
-                .start();
+    private static TextView text(Context context, String value, int color, float size, Typeface typeface) {
+        TextView t = new TextView(context);
+        t.setText(value);
+        t.setTextColor(color);
+        t.setTextSize(size);
+        t.setTypeface(typeface);
+        return t;
     }
 
-    private TextView textView(String text, int color, float size, int style) {
-        TextView tv = new TextView(activity);
-        tv.setText(text);
-        tv.setTextColor(color);
-        tv.setTextSize(size);
-        tv.setTypeface(Typeface.create("sans-serif", style));
-        return tv;
+    private static Button button(Context context, String value, int color, Typeface typeface) {
+        Button b = new Button(context);
+        b.setText(value);
+        b.setTextColor(color);
+        b.setTextSize(11);
+        b.setTypeface(typeface);
+        b.setGravity(Gravity.CENTER);
+        b.setPadding(0, 0, 0, 0);
+        b.setMinHeight(0);
+        b.setMinWidth(0);
+        return b;
     }
 
-    private Button makeButton(String text, int bgColor, int textColor, int strokeColor, boolean filled) {
-        Button button = new Button(activity);
-        button.setText(text);
-        button.setTextColor(textColor);
-        button.setTextSize(11);
-        button.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
-        button.setAllCaps(false);
-        button.setGravity(Gravity.CENTER);
-        button.setPadding(0, 0, 0, 0);
-        button.setLetterSpacing(0.12f);
-
-        GradientDrawable bg = roundRect(bgColor, 13, strokeColor, filled ? 0 : 1);
-        if (!filled) {
-            bg.setStroke(dp(1), strokeColor);
+    private static Typeface loadFont(Context context, String path, Typeface fallback) {
+        try {
+            return Typeface.createFromAsset(context.getAssets(), path);
+        } catch (Exception e) {
+            return fallback;
         }
-        button.setBackground(bg);
-        button.setStateListAnimator(null);
-
-        // Small press animation; the HTML version uses scale(0.96).
-        button.setOnTouchListener((v, event) -> {
-            switch (event.getActionMasked()) {
-                case android.view.MotionEvent.ACTION_DOWN:
-                    v.animate().scaleX(0.96f).scaleY(0.96f).setDuration(90).start();
-                    break;
-                case android.view.MotionEvent.ACTION_UP:
-                case android.view.MotionEvent.ACTION_CANCEL:
-                    v.animate().scaleX(1f).scaleY(1f).setDuration(140).start();
-                    break;
-                default:
-                    break;
-            }
-            return false;
-        });
-
-        return button;
     }
 
-    private GradientDrawable roundRect(int fill, float radiusDp, int strokeColor, int strokeWidthDp) {
+    private static GradientDrawable rounded(Context context, int color, float radiusDp, int strokeWidth, int strokeColor) {
         GradientDrawable drawable = new GradientDrawable();
-        drawable.setColor(fill);
-        drawable.setCornerRadius(dp(radiusDp));
-        if (strokeWidthDp > 0) {
-            drawable.setStroke(dp(strokeWidthDp), strokeColor);
+        drawable.setColor(color);
+        drawable.setCornerRadius(dp(context, radiusDp));
+        if (strokeWidth > 0) {
+            drawable.setStroke(dp(context, strokeWidth), strokeColor);
         }
         return drawable;
     }
 
-    private LinearLayout.LayoutParams wrapParams() {
-        return new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT);
+    private static int dp(Context context, float value) {
+        return (int) (value * context.getResources().getDisplayMetrics().density + 0.5f);
     }
 
-    private Bitmap loadAssetBitmap(String name) {
-        try (InputStream input = activity.getAssets().open(name)) {
-            return BitmapFactory.decodeStream(input);
-        } catch (Exception e) {
-            return null;
+    /** Simple 16:9 ImageView helper with no XML. */
+    private static final class AspectImageView extends ImageView {
+        AspectImageView(Context context) {
+            super(context);
         }
-    }
-
-    private int getCardWidth() {
-        int screenWidth = activity.getResources().getDisplayMetrics().widthPixels;
-        int maxWidth = dp(470);
-        int safeWidth = screenWidth - dp(36);
-        return Math.max(dp(280), Math.min(maxWidth, safeWidth));
-    }
-
-    private int dp(float value) {
-        return Math.round(value * activity.getResources().getDisplayMetrics().density);
     }
 }
