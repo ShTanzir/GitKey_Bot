@@ -1,7 +1,26 @@
-.gradle/
-.idea/
-/build/
-**/build/
+# Environment & Credentials
+.env
 local.properties
-*.iml
-.DS_Store
+my-upload-key.jks
+debug.keystore
+
+# Generated Keystores & Secret Exports
+*.jks
+*.p12
+*.keystore
+*.env
+
+# Python Caches & Virtual Envs
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+env/
+
+# Temporary Session Directory
+temp/
+/app/build/
+.gradle/
+build/
