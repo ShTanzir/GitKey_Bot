@@ -24,7 +24,7 @@
   - Zero logging of passwords, private keys, or secret blocks.
   - Per-user session isolation and rate limiting.
   - Automatic temporary file deletion.
-- 🚀 **Free Deployment Ready**: Designed out-of-the-box for **Render.com free worker deployment**.
+- 🚀 **Render.com Web Service Port Scan Compatible**: Embedded HTTP health check server handles Render.com port scans automatically.
 
 ---
 
@@ -68,6 +68,7 @@ cp .env.example .env
 Edit `.env` and paste your Telegram Bot Token:
 ```env
 TELEGRAM_BOT_TOKEN=1234567890:ABCdefGHIjklMNOpqrsTUVwxyZ_1234567
+PORT=8080
 USE_WEBHOOK=false
 MAX_FILE_SIZE_MB=20
 TEMP_FILE_LIFETIME_SEC=1800
@@ -84,7 +85,7 @@ Open Telegram and send `/start` to your bot to test the interface!
 
 ## ☁️ Free Render.com Deployment Guide
 
-Render.com offers a free **Background Worker** or **Web Service** tear suitable for running Python Telegram Bots with polling.
+Render.com scans for an open HTTP port when deploying a **Web Service**. GitKey Bot includes an embedded lightweight HTTP health check server that responds `200 OK` on `0.0.0.0:PORT` while simultaneously running Telegram polling.
 
 ### Step 1: Push Code to GitHub
 1. Create a new **private** or public repository on GitHub.
@@ -99,27 +100,26 @@ git push -u origin main
 ```
 > ⚠️ **CRITICAL:** Ensure `.env` is listed in `.gitignore` so your bot token is NEVER pushed to GitHub.
 
-### Step 2: Create a Free Service on Render.com
+### Step 2: Deploy on Render.com
 1. Log in to [Render.com](https://render.com).
-2. Click **New +** → **Background Worker**.
+2. Click **New +** → **Web Service** (or **Background Worker**).
 3. Connect your GitHub repository (`gitkey-bot`).
-4. Configure the service settings:
+4. Configure service settings:
    - **Name:** `gitkey-bot`
-   - **Region:** Select the closest region (e.g. Oregon, Frankfurt, Singapore).
+   - **Region:** Select closest region (e.g. Oregon, Frankfurt, Singapore).
    - **Branch:** `main`
    - **Runtime:** `Python 3`
    - **Build Command:** `pip install -r requirements.txt`
    - **Start Command:** `python main.py`
    - **Instance Type:** `Free`
 
-### Step 3: Configure Environment Variables on Render
-1. In your Render service dashboard, go to the **Environment** tab.
-2. Click **Add Environment Variable**.
-3. Add key: `TELEGRAM_BOT_TOKEN`
+### Step 3: Configure Environment Variables
+1. In your Render dashboard, go to **Environment**.
+2. Add key: `TELEGRAM_BOT_TOKEN`
    Value: Paste your token from @BotFather (`1234567890:ABCdefGHIjklMNO...`).
-4. Click **Save Changes**.
-5. Render will automatically build and deploy your bot!
-6. Go to the **Logs** tab to verify that `GitKey Bot is starting...` appears.
+3. Add key: `PORT`
+   Value: `10000` (or leave default assigned by Render).
+4. Click **Save Changes**. Render will deploy your bot and detect the open health check port (`==> Port 10000 open! Live!`).
 
 ---
 
@@ -130,38 +130,6 @@ git push -u origin main
 3. **No Secret Logging**: Standard output and error logs never print tokens, passwords, Base64 secrets, or key material.
 4. **Temporary Directory Cleanup**: Temporary files generated during user sessions are stored in an isolated session directory and purged automatically after 30 minutes.
 5. **Rate Limiting**: Per-user rate limiting (30 actions/min) protects the server against CPU and memory exhaustion.
-
----
-
-## 📂 Project Structure
-
-```
-gitkey-bot/
-├── main.py              # Application entry point & bot runner
-├── config.py            # Environment variables & limit configurations
-├── security.py          # Rate limiting, input sanitization & safe logging
-├── crypto_utils.py      # Hashes, password generator, base64, JSON & UUID
-├── keystore.py          # Real PKCS12 keystore generator & inspector
-├── file_utils.py        # Temp file lifecycle & APK certificate inspector
-├── storage.py           # Per-user session manager & metadata history
-├── keyboards.py         # Inline keyboards, menus & wizard navigation
-├── handlers.py          # Command, callback & document message handlers
-├── requirements.txt     # Python dependencies
-├── render.yaml          # Render.com deployment configuration
-├── .env.example         # Environment variables template
-├── .gitignore           # Git exclusion rules
-└── README.md            # Comprehensive guide
-```
-
----
-
-## 📜 Commands Reference
-
-- `/start` - Launch the main dashboard and welcome screen.
-- `/menu` - Return to the main menu at any time.
-- `/tools` - Access the 14+ developer utilities directly.
-- `/help` - View the help manual and GitHub Actions setup instructions.
-- `/cancel` - Immediately abort any active wizard or tool and clean up temporary state.
 
 ---
 
