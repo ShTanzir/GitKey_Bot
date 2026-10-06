@@ -32,7 +32,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     welcome_text = (
         f"👋 Welcome <b>{user.first_name}</b> to <b>GitKey Bot</b>!\n\n"
         "<b>GitKey</b> is a lightweight developer utility for Android developers and modders. "
-        "Create Android signing keystores and prepare <b>GitHub Actions Secrets</b> for automated APK/AAB builds.\n\n"
+        "Create Android signing keystores, prepare <b>GitHub Actions Secrets</b>, and generate <b>Google Cloud / Firebase Console</b> fingerprints.\n\n"
         "🔒 <b>Security First:</b>\n"
         "• All keystore files are generated locally in temporary memory.\n"
         "• Passwords and private keys are NEVER logged or stored on our servers.\n"
@@ -65,11 +65,12 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "2. Enter your Project Name (e.g. <code>MyApp</code>).\n"
         "3. Specify or auto-generate secure passwords.\n"
         "4. Tap <b>BUILD KEYSTORE</b>.\n"
-        "5. Receive your <code>.jks</code> file and 4 GitHub Actions Secrets:\n"
+        "5. Receive your <code>.jks</code> file, GitHub Actions Secrets, and <b>Firebase SHA-1</b> fingerprints:\n"
         "   • <code>KEYSTORE_BASE64</code>\n"
         "   • <code>KEYSTORE_PASSWORD</code>\n"
         "   • <code>KEY_ALIAS</code>\n"
-        "   • <code>KEY_PASSWORD</code>\n\n"
+        "   • <code>KEY_PASSWORD</code>\n"
+        "   • <b>SHA-1 &amp; SHA-256 Fingerprints</b> (for Google Cloud / Firebase)\n\n"
         "🐙 <b>GitHub Actions Integration:</b>\n"
         "In your GitHub repository go to: <b>Settings → Secrets and variables → Actions</b>, and add the four secret keys above.\n\n"
         "🛠️ <b>Available Commands:</b>\n"
@@ -199,6 +200,30 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await download_env_file(update, context)
         return
 
+    if data == "res_dl_base64_txt":
+        res = session.last_result
+        if res:
+            await download_single_secret_txt(update, context, "KEYSTORE_BASE64.txt", res.base64_secret)
+        return
+
+    if data == "res_dl_pass_txt":
+        res = session.last_result
+        if res:
+            await download_single_secret_txt(update, context, "KEYSTORE_PASSWORD.txt", res.store_password)
+        return
+
+    if data == "res_dl_alias_txt":
+        res = session.last_result
+        if res:
+            await download_single_secret_txt(update, context, "KEY_ALIAS.txt", res.alias)
+        return
+
+    if data == "res_dl_keypass_txt":
+        res = session.last_result
+        if res:
+            await download_single_secret_txt(update, context, "KEY_PASSWORD.txt", res.key_password)
+        return
+
     # Settings Toggles
     if data == "sett_toggle_hide":
         session.hide_secrets = not session.hide_secrets
@@ -267,7 +292,7 @@ async def process_wizard_input(update: Update, context: ContextTypes.DEFAULT_TYP
             f"<b>Create Signing Key (Step 3 of 5)</b>\n"
             f"Key Alias: <code>{session.draft_config.alias}</code>\n\n"
             f"Keystore Password (Default Generated: <code>{session.draft_config.store_password}</code>):\n"
-            f"<i>Type your own custom password or tap Skip to keep the secure generated password.</i>"
+            f"<i>Type a custom password or tap Skip to keep the secure generated password.</i>"
         )
         await update.message.reply_text(msg, parse_mode=ParseMode.HTML, reply_markup=wizard_nav_keyboard(can_skip=True))
 
@@ -361,7 +386,7 @@ async def build_keystore_workflow(update: Update, context: ContextTypes.DEFAULT_
     await asyncio.sleep(0.4)
     await msg.edit_text("⏳ <i>Encoding PKCS12 keystore to Base64…</i>", parse_mode=ParseMode.HTML)
     await asyncio.sleep(0.4)
-    await msg.edit_text("⏳ <i>Preparing GitHub Actions Secrets…</i>", parse_mode=ParseMode.HTML)
+    await msg.edit_text("⏳ <i>Preparing GitHub Secrets & Firebase SHA-1…</i>", parse_mode=ParseMode.HTML)
 
     try:
         result = KeystoreGenerator.generate(session.draft_config)
@@ -374,7 +399,7 @@ async def build_keystore_workflow(update: Update, context: ContextTypes.DEFAULT_
 
 
 async def show_result_screen(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Displays generated GitHub Actions secrets."""
+    """Displays generated GitHub Actions secrets and Google Cloud / Firebase section."""
     query = update.callback_query
     user = update.effective_user
     session = session_manager.get_session(user.id)
@@ -391,12 +416,17 @@ async def show_result_screen(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     text = (
         "✅ <b>Keystore Ready!</b>\n"
-        "Your GitHub Actions signing credentials have been generated.\n\n"
-        f"<b>1. KEYSTORE_BASE64:</b>\n<code>{b64_val[:100]}...</code>\n\n"
+        "Your GitHub Actions signing credentials and Firebase fingerprints have been generated.\n\n"
+        "<b>🌐 GOOGLE CLOUD &amp; FIREBASE CONSOLE:</b>\n"
+        f"<b>SHA-1 Fingerprint (Firebase / GCP):</b>\n<code>{res.sha1_fingerprint}</code>\n\n"
+        f"<b>SHA-256 Fingerprint:</b>\n<code>{res.sha256_fingerprint}</code>\n\n"
+        f"<b>MD5 Fingerprint:</b>\n<code>{res.md5_fingerprint}</code>\n\n"
+        "------------------------------------\n"
+        "<b>🐙 GITHUB ACTIONS SECRETS:</b>\n"
+        f"<b>1. KEYSTORE_BASE64:</b>\n<code>{b64_val[:80]}...</code>\n\n"
         f"<b>2. KEYSTORE_PASSWORD:</b>\n<code>{store_pass_val}</code>\n\n"
         f"<b>3. KEY_ALIAS:</b>\n<code>{res.alias}</code>\n\n"
-        f"<b>4. KEY_PASSWORD:</b>\n<code>{key_pass_val}</code>\n\n"
-        f"<b>SHA-256 Fingerprint:</b>\n<code>{res.sha256_fingerprint}</code>"
+        f"<b>4. KEY_PASSWORD:</b>\n<code>{key_pass_val}</code>"
     )
 
     if query:
@@ -470,6 +500,13 @@ async def download_env_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     env_filename = f"{sanitize_filename(res.project_name, 'secrets')}-github.env"
 
     await update.callback_query.message.reply_document(document=InputFile(bio, filename=env_filename))
+
+
+async def download_single_secret_txt(update: Update, context: ContextTypes.DEFAULT_TYPE, filename: str, content: str):
+    """Sends an individual secret text file (e.g. KEYSTORE_BASE64.txt)."""
+    bio = io.BytesIO((content if content else "").encode('utf-8'))
+    bio.name = filename
+    await update.callback_query.message.reply_document(document=InputFile(bio, filename=filename))
 
 
 async def show_my_keys(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -606,7 +643,6 @@ async def handle_document_upload(update: Update, context: ContextTypes.DEFAULT_T
         await update.message.reply_text(result, parse_mode=ParseMode.HTML, reply_markup=tools_menu_keyboard())
 
     elif tool == "tool_keystore_inspect":
-        # Prompt password
         session.temp_file_bytes = bytes(downloaded_bytes)
         session.current_state = "TOOL_WAITING_KEYSTORE_PASS"
         await update.message.reply_text("🔑 Keystore uploaded! Type the <b>Keystore Password</b> to inspect details:", parse_mode=ParseMode.HTML)
