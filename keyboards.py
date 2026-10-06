@@ -50,8 +50,16 @@ def result_keyboard(hide_secrets: bool = True) -> InlineKeyboardMarkup:
             InlineKeyboardButton(toggle_label, callback_data="res_toggle_hide")
         ],
         [
-            InlineKeyboardButton("📥 Download .jks File", callback_data="res_download_jks"),
-            InlineKeyboardButton("📄 Download Secrets .env", callback_data="res_download_env")
+            InlineKeyboardButton("📥 Download .jks", callback_data="res_download_jks"),
+            InlineKeyboardButton("📄 Download .env", callback_data="res_download_env")
+        ],
+        [
+            InlineKeyboardButton("📄 KEYSTORE_BASE64.txt", callback_data="res_dl_base64_txt"),
+            InlineKeyboardButton("📄 KEYSTORE_PASSWORD.txt", callback_data="res_dl_pass_txt")
+        ],
+        [
+            InlineKeyboardButton("📄 KEY_ALIAS.txt", callback_data="res_dl_alias_txt"),
+            InlineKeyboardButton("📄 KEY_PASSWORD.txt", callback_data="res_dl_keypass_txt")
         ],
         [
             InlineKeyboardButton("🐙 GitHub Actions Guide", callback_data="btn_github_actions"),
